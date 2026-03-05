@@ -1,15 +1,22 @@
-name: Refresh Dashboard Data
+name: Refresh Dashboard
 
 on:
   schedule:
-    # Runs every day at 11:00 UTC (8:00 AM BRT)
-    - cron: '0 11 * * *'
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+    - cron: '0 11 * * *'  # 11:00 UTC = 08:00 BRT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,39 +27,44 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-cloud-bigquery
+        run: pip install -r requirements.txt
 
-      - name: Authenticate with GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}'
+      - name: Create GCP credentials file
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > /tmp/gcp-key.json
 
-      - name: Refresh dashboard data
-        run: python refresh_dashboard.py --dashboard index.html
+      - name: Run refresh script
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
+        run: python refresh_dashboard.py
 
       - name: Commit updated dashboard
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           git add index.html
-          git diff --staged --quiet || git commit -m "Auto-refresh dashboard data $(date -u +%Y-%m-%d)"
+          git diff --staged --quiet || git commit -m "Auto-refresh dashboard data [skip ci]"
           git push
 
   deploy:
     needs: refresh
     runs-on: ubuntu-latest
-
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: main
 
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v3
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          publish-dir: '.'
-          production-deploy: true
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
