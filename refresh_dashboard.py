@@ -168,7 +168,7 @@ WITH sub_base AS (
     {PRODUCT_CASE} AS product_name
   FROM `{PROJECT_ID}.{DATASET}.subscriptions` s,
   UNNEST(JSON_EXTRACT_ARRAY(s.lineItems)) AS li
-  CROSS JOIN UNNEST([JSON_VALUE(li, '$.productTitle')]) AS pt
+  CROSS JOIN UNNEST([JSON_VALUE(li, '$.produchtTitle')]) AS pt
   WHERE s.createdAt IS NOT NULL
     AND s.price > 0
     AND s.lineItems IS NOT NULL
@@ -193,7 +193,7 @@ SELECT
   CAST(cohort_total AS STRING) || '|' || CAST(active_subscribers AS STRING) || '|' ||
   CAST(ROUND(SAFE_DIVIDE(active_subscribers, cohort_total) * 100, 1) AS STRING) AS line
 FROM product_retention
-WHERE cohort_total >= 10
+WHERE cohort_total >= 30
 ORDER BY product_name, month_offset
 """
 
